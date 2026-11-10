@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Крестики-нолики Pro</title>
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(135deg, #1e3c72, #2a5298);
+    color: #fff;
+    padding: 12px;
+    user-select: none;
+    overflow-x: hidden;
+  }
+  h1 { font-size: 1.3rem; margin: 6px 0 10px; text-align: center; }
+
+  /* ===== Экран настройки ===== */
+  #setup {
+    width: 100%;
+    max-width: 380px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .card {
+    background: rgba(255,255,255,0.1);
+    border-radius: 14px;
+    padding: 14px;
+  }
+  .card h3 { margin: 0 0 10px; font-size: .95rem; opacity: .9; }
+  .row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+  .row:last-child { margin-bottom: 0; }
+  .row label { font-size: .85rem; width: 70px; opacity: .85; }
+  input[type=text] {
+    flex: 1;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.25);
+    background: rgba(0,0,0,0.2);
+    color: #fff;
+    font-size: 1rem;
+    outline: none;
+  }
+  input[type=text]:focus { border-color: #ffd54f; }
+  .sym-picker { display: flex; gap: 6px; flex-wrap: wrap; }
+  .sym-btn {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    border: 2px solid rgba(255,255,255,0.2);
+    background: rgba(0,0,0,0.2);
+    color: #fff;
+    font-size: 1.3rem;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0;
+  }
+  .sym-btn.sel { border-color: #ffd54f; background: rgba(255,213,79,0.25); }
+
+  button.big {
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: 12px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    background: #ffd54f;
+    color: #1e3c72;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  button.big.secondary { background: rgba(255,255,255,0.18); color: #fff; }
+  button.big:active { transform: scale(0.98); }
+
+  /* ===== Игровой экран ===== */
+  #game { display: none; width: 100%; max-width: 380px; flex-direction: column; align-items: center; }
+  .scoreboard {
+    display: flex; gap: 8px; width: 100%; margin-bottom: 8px;
+  }
+  .player {
+    flex: 1;
+    background: rgba(255,255,255,0.12);
+    border-radius: 12px;
+    padding: 8px;
+    text-align: center;
+    border: 2px solid transparent;
+    transition: all .25s;
+    position: relative;
+  }
+  .player.active {
+    border-color: #ffd54f;
+    background: rgba(255,213,79,0.22);
+    transform: scale(1.03);
+  }
+  .player .name { font-size: .8rem; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .player .sym { font-size: 1.4rem; font-weight: 700; line-height: 1.1; }
+  .player .pts { font-size: 1.4rem; font-weight: 800; color: #ffd54f; }
+
+  #status { font-size: 1rem; margin-bottom: 8px; min-height: 1.4em; text-align: center; font-weight: 600; }
+
+  #board {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    width: min(88vw, 340px);
+    aspect-ratio: 1 / 1;
+    margin-bottom: 12px;
+  }
+  .cell {
+    background: rgba(255,255,255,0.1);
+    border: none;
+    border-radius: 14px;
+    font-size: min(15vw, 62px);
+    font-weight: 800;
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: background .15s, transform .1s;
+  }
+  .cell:active { transform: scale(0.95); }
+  .cell.win { background: rgba(255,213,79,0.5); }
+  .cell.filled { cursor: default; }
+
+  .buttons { display: flex; gap: 8px; width: 100%; flex-wrap: wrap; }
+  .buttons button { flex: 1; min-width: 90px; padding: 10px; border: none; border-radius: 10px; font-size: .9rem; font-weight: 600; background: #ffd54f; color: #1e3c72; cursor: pointer; }
+  .buttons button.secondary { background: rgba(255,255,255,0.18); color: #fff; }
+  .buttons button:active { transform: scale(0.96); }
+
+  /* ===== История ===== */
+  #historyBox { width: 100%; max-width: 380px; margin-top: 10px; }
+  #historyBox h3 { font-size: .85rem; opacity: .85; margin: 8px 0 6px; }
+  #history { list-style: none; padding: 0; margin: 0; font-size: .8rem; max-height: 110px; overflow-y: auto; }
+  #history li { padding: 4px 8px; background: rgba(255,255,255,0.08); border-radius: 8px; margin-bottom: 4px; display: flex; justify-content: space-between; }
+  #history li.winX { border-left: 3px solid #4fc3f7; }
+  #history li.winO { border-left: 3px solid #ff8a65; }
+  #history li.draw { border-left: 3px solid #bbb; }
+
+  /* ===== Модалки ===== */
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.65);
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 20px; z-index: 100;
+  }
+  .overlay.show { display: flex; }
+  .modal {
+    background: #233c72;
+    border-radius: 16px;
+    padding: 20px;
+    width: 100%; max-width: 360px;
+  }
+  .modal h2 { margin: 0 0 12px; font-size: 1.15rem; }
+  .modal p { font-size: .9rem; opacity: .9; margin: 0 0 12px; }
+  .modal input { width: 100%; margin-bottom: 12px; }
+  .modal .buttons { margin-top: 4px; }
+
+  /* ===== Онлайн ===== */
+  .online-info {
+    background: rgba(0,0,0,0.3);
+    border-radius: 10px;
+    padding: 10px;
+    font-size: .85rem;
+    word-break: break-all;
+    margin-bottom: 10px;
+  }
+  .online-info b { color: #ffd54f; }
+  .copy-btn {
+    background: #ffd54f; color: #1e3c72;
+    border: none; border-radius: 8px;
+    padding: 6px 12px; font-size: .8rem; font-weight: 700;
+    cursor: pointer; margin-top: 8px;
+  }
+  #peerStatus { font-size: .8rem; opacity: .8; margin-bottom: 8px; }
+
+  /* ===== Настройки звука ===== */
+  .sound-toggle {
+    position: fixed; top: 10px; right: 10px;
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255,255,255,0.18);
+    color: #fff;
+    font-size: 1.2rem;
+    cursor: pointer;
+    z-index: 50;
+    display: flex; align-items: center; justify-content: center;
+  }
+</style>
+</head>
+<body>
+
+<button class="sound-toggle" id="soundToggle" title="Звук вкл/выкл">🔊</button>
+
+<h1>Крестики-нолики Pro</h1>
+
+<!-- ========== ЭКРАН НАСТРОЙКИ ========== -->
+<div id="setup">
+  <div class="card">
+    <h3>👥 Игроки</h3>
+    <div class="row">
+      <label>Игрок 1</label>
+      <input type="text" id="name1" maxlength="12" value="Игрок 1" placeholder="Имя">
+    </div>
+    <div class="sym-picker" id="symPick1" style="margin-left:80px;"></div>
+    <div class="row" style="margin-top:10px;">
+      <label>Игрок 2</label>
+      <input type="text" id="name2" maxlength="12" value="Игрок 2" placeholder="Имя">
+    </div>
+    <div class="sym-picker" id="symPick2" style="margin-left:80px;"></div>
+  </div>
+
+  <div class="card">
+    <h3>🎵 Звуки</h3>
+    <div class="row">
+      <label style="width:auto;flex:1;opacity:1;font-size:.9rem;">Включить звуковые эффекты</label>
+      <input type="checkbox" id="soundEnabled" checked style="width:24px;height:24px;">
+    </div>
+  </div>
+
+  <button class="big" id="startLocal">▶ Играть на одном телефоне</button>
+  <button class="big secondary" id="startOnline">🌐 Играть онлайн с другом</button>
+</div>
+
+<!-- ========== ИГРОВОЙ ЭКРАН ========== -->
+<div id="game">
+  <div class="scoreboard">
+    <div class="player" id="p1">
+      <div class="name" id="p1name">Игрок 1</div>
+      <div class="sym" id="p1sym">✖</div>
+      <div class="pts" id="score1">0</div>
+    </div>
+    <div class="player" id="p2">
+      <div class="name" id="p2name">Игрок 2</div>
+      <div class="sym" id="p2sym">◯</div>
+      <div class="pts" id="score2">0</div>
+    </div>
+  </div>
+
+  <div id="status">Ход Игрока 1</div>
+  <div id="board"></div>
+
+  <div class="buttons">
+    <button id="resetRound">🔄 Новый раунд</button>
+    <button class="secondary" id="resetAll">🧹 Сброс счёта</button>
+    <button class="secondary" id="backToMenu">🏠 Меню</button>
+  </div>
+
+  <div id="historyBox">
+    <h3>📜 История раундов</h3>
+    <ul id="history"></ul>
+  </div>
+</div>
+
+<!-- ========== МОДАЛКА ОНЛАЙН ========== -->
+<div class="overlay" id="onlineModal">
+  <div class="modal">
+    <h2>🌐 Онлайн-игра</h2>
+    <div id="peerStatus">Инициализация...</div>
+
+    <div id="hostView" style="display:none;">
+      <p>Отправь этот код другу:</p>
+      <div class="online-info"><b id="myPeerId">—</b></div>
+      <button class="copy-btn" id="copyId">📋 Скопировать код</button>
+      <p style="margin-top:14px;">Ждём подключения друга...</p>
+    </div>
+
+    <div id="joinView" style="display:none;">
+      <p>Введи код друга:</p>
+      <input type="text" id="joinCode" placeholder="Код друга">
+      <button class="big" id="connectBtn" style="margin-top:0;">Подключиться</button>
+    </div>
+
+    <div class="buttons" style="margin-top:12px;">
+      <button class="secondary" id="closeOnline">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== МОДАЛКА КОНЕЦ РАУНДА ========== -->
+<div class="overlay" id="endModal">
+  <div class="modal" style="text-align:center;">
+    <h2 id="endTitle">🏆 Победа!</h2>
+    <p id="endText"></p>
+    <div class="buttons">
+      <button id="nextRound">▶ Следующий раунд</button>
+      <button class="secondary" id="closeEnd">Ок</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   КОНСТАНТЫ
+============================================================ */
+const WIN_LINES = [
+  [0,1,2],[3,4,5],[6,7,8],
+  [0,3,6],[1,4,7],[2,5,8],
+  [0,4,8],[2,4,6]
+];
+
+const SYMBOLS = ['✖','◯','⭐','🔥','💎','🌙','⚡','🍀','🎯'];
+const SYM_COLORS = {
+  '✖':'#4fc3f7','◯':'#ff8a65','⭐':'#ffd54f','🔥':'#ff5252',
+  '💎':'#64b5f6','🌙':'#ce93d8','⚡':'#fff176','🍀':'#81c784','🎯':'#ff8a65'
+};
+
+/* ============================================================
+   СОСТОЯНИЕ
+============================================================ */
+const state = {
+  mode: 'local',          // 'local' | 'online-host' | 'online-guest'
+  mySymbol: null,         // для онлайн — какой символ у меня
+  cells: Array(9).fill(''),
+  current: 'X',           // 'X' | 'O' (всегда внутренние метки)
+  roundOver: false,
+  scores: { X:0, O:0 },
+  draws: 0,
+  roundNum: 0,
+  history: [],
+  names: { X:'Игрок 1', O:'Игрок 2' },
+  syms: { X:'✖', O:'◯' },
+  soundOn: true,
+  // онлайн
+  peer: null,
+  conn: null,
+  myTurnInOnline: false
+};
+
+/* ============================================================
+   ЗВУКИ (Web Audio API — без файлов)
+============================================================ */
+let audioCtx = null;
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+function playTone(freq, dur=0.12, type='sine', vol=0.15) {
+  if (!state.soundOn) return;
+  try {
+    initAudio();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + dur);
+  } catch(e) {}
+}
+const sound = {
+  move:  () => playTone(520, 0.08, 'sine'),
+  win:   () => { playTone(660,0.1); setTimeout(()=>playTone(880,0.15),100); setTimeout(()=>playTone(1100,0.2),220); },
+  draw:  () => playTone(300, 0.25, 'triangle'),
+  error: () => playTone(160, 0.2, 'sawtooth', 0.1)
+};
+
+/* ============================================================
+   ЗАГРУЗКА / СОХРАНЕНИЕ
+============================================================ */
+function loadPersisted() {
+  try {
+    const s = JSON.parse(localStorage.getItem('tttpro_state'));
+    if (s) {
+      if (s.scores) state.scores = s.scores;
+      if (typeof s.draws === 'number') state.draws = s.draws;
+      if (s.names) state.names = s.names;
+      if (s.syms) state.syms = s.syms;
+      if (Array.isArray(s.history)) state.history = s.history;
+      if (typeof s.soundOn === 'boolean') state.soundOn = s.soundOn;
+    }
+  } catch(e) {}
+}
+function persist() {
+  try {
+    localStorage.setItem('tttpro_state', JSON.stringify({
+      scores: state.scores,
+      draws: state.draws,
+      names: state.names,
+      syms: state.syms,
+      history: state.history.slice(-20),
+      soundOn: state.soundOn
+    }));
+  } catch(e) {}
+}
+
+/* ============================================================
+   ЭКРАН НАСТРОЙКИ — выбор символов
+============================================================ */
+function buildSymbolPicker(containerId, playerKey) {
+  const box = document.getElementById(containerId);
+  box.innerHTML = '';
+  SYMBOLS.forEach(sym => {
+    const b = document.createElement('button');
+    b.className = 'sym-btn' + (state.syms[playerKey] === sym ? ' sel' : '');
+    b.textContent = sym;
+    b.style.color = SYM_COLORS[sym] || '#fff';
+    b.onclick = () => {
+      // Не даём выбрать тот же символ, что у другого
+      const otherKey = playerKey === 'X' ? 'O' : 'X';
+      if (state.syms[otherKey] === sym) {
+        sound.error();
+        alert('Этот символ уже занят другим игроком');
+        return;
+      }
+      state.syms[playerKey] = sym;
+      sound.move();
+      buildSymbolPicker(containerId, playerKey);
+      persist();
+    };
+    box.appendChild(b);
+  });
+}
+
+/* ============================================================
+   ОТРИСОВКА
+============================================================ */
+const boardEl = document.getElementById('board');
+const statusEl = document.getElementById('status');
+const p1El = document.getElementById('p1');
+const p2El = document.getElementById('p2');
+
+function symHtml(sym) {
+  return `<span style="color:${SYM_COLORS[sym]||'#fff'}">${sym}</span>`;
+}
+
+function renderBoard() {
+  boardEl.innerHTML = '';
+  state.cells.forEach((val, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'cell';
+    if (val) btn.classList.add('filled');
+    if (val) btn.innerHTML = symHtml(state.syms[val]);
+    btn.onclick = () => handleMove(i);
+    boardEl.appendChild(btn);
+  });
+}
+
+function updateScoreboard() {
+  document.getElementById('p1name').textContent = state.names.X;
+  document.getElementById('p2name').textContent = state.names.O;
+  document.getElementById('p1sym').innerHTML = symHtml(state.syms.X);
+  document.getElementById('p2sym').innerHTML = symHtml(state.syms.O);
+  document.getElementById('score1').textContent = state.scores.X;
+  document.getElementById('score2').textContent = state.scores.O;
+
+  const isMyTurnLocal = state.mode === 'local' || state.myTurnInOnline;
+  p1El.classList.toggle('active', state.current==='X' && !state.roundOver && isMyTurnLocal);
+  p2El.classList.toggle('active', state.current==='O' && !state.roundOver && isMyTurnLocal);
+}
+
+function renderHistory() {
+  const ul = document.getElementById('history');
+  ul.innerHTML = '';
+  if (!state.history.length) {
+    ul.innerHTML = '<li style="opacity:.5;justify-content:center;">Пока пусто</li>';
+    return;
+  }
+  state.history.slice().reverse().forEach(h => {
+    const li = document.createElement('li');
+    let cls = 'draw', txt = 'Ничья';
+    if (h.winner === 'X') { cls = 'winX'; txt = `🏆 ${state.names.X}`; }
+    else if (h.winner === 'O') { cls = 'winO'; txt = `🏆 ${state.names.O}`; }
+    li.className = cls;
+    li.innerHTML = `<span>Раунд ${h.round}</span><span>${txt}</span>`;
+    ul.appendChild(li);
+  });
+}
+
+function setStatus(text) {
+  statusEl.textContent = text;
+}
+
+function refreshTurnStatus() {
+  if (state.roundOver) return;
+  const name = state.names[state.current];
+  const sym = symHtml(state.syms[state.current]);
+  if (state.mode === 'local') {
+    setStatus(`Ход ${name} ${sym}`);
+  } else {
+    const myTurn = state.myTurnInOnline;
+    setStatus(myTurn ? `Твой ход ${symHtml(state.syms[state.mySymbol])}` : `Ход соперника...`);
+  }
+}
+
+/* ============================================================
+   ЛОГИКА ХОДА
+============================================================ */
+function handleMove(i) {
+  if (state.roundOver || state.cells[i]) return;
+
+  // Онлайн: проверяем, мой ли ход
+  if (state.mode !== 'local') {
+    if (!state.myTurnInOnline) {
+      sound.error();
+      return;
+    }
+    if (state.current !== state.mySymbol) return;
+
+    // Отправляем ход сопернику
+    sendToPeer({ type:'move', index:i, symbol:state.current });
+    applyMove(i, state.current, true);
+  } else {
+    applyMove(i, state.current, true);
+  }
+}
+
+function applyMove(i, sym, playSound) {
+  if (state.roundOver || state.cells[i]) return;
+  state.cells[i] = sym;
+  if (playSound) sound.move();
+  renderBoard();
+
+  const winLine = getWinLine(sym);
+  if (winLine) {
+    endRound(sym, winLine);
+    return;
+  }
+  if (state.cells.every(c => c)) {
+    endRound(null, null);
+    return;
+  }
+
+  state.current = state.current === 'X' ? 'O' : 'X';
+  if (state.mode !== 'local') state.myTurnInOnline = (state.current === state.mySymbol);
+
+  updateScoreboard();
+  refreshTurnStatus();
+}
+
+function getWinLine(sym) {
+  for (const line of WIN_LINES) {
+    if (line.every(i => state.cells[i] === sym)) return line;
+  }
+  return null;
+}
+
+function endRound(winner, winLine) {
+  state.roundOver = true;
+  state.roundNum++;
+
+  if (winLine) {
+    const nodes = boardEl.children;
+    winLine.forEach(i => nodes[i].classList.add('win'));
+  }
+
+  if (winner) {
+    state.scores[winner]++;
+    sound.win();
+  } else {
+    state.draws++;
+    sound.draw();
+  }
+
+  state.history.push({ round: state.roundNum, winner: winner, draws: state.draws });
+  persist();
+  updateScoreboard();
+  renderHistory();
+
+  // Модалка
+  const titleEl = document.getElementById('endTitle');
+  const textEl = document.getElementById('endText');
+  if (winner) {
+    titleEl.textContent = '🏆 Победа!';
+    textEl.innerHTML = `Победил <b>${state.names[winner]}</b> ${symHtml(state.syms[winner])}<br>
+      Счёт: ${state.scores.X} : ${state.scores.O}`;
+  } else {
+    titleEl.textContent = '🤝 Ничья!';
+    textEl.innerHTML = `Счёт: ${state.scores.X} : ${state.scores.O}<br>Ничьих: ${state.draws}`;
+  }
+  document.getElementById('endModal').classList.add('show');
+}
+
+/* ============================================================
+   УПРАВЛЕНИЕ РАУНДАМИ
+============================================================ */
+function startNewRound(alternate = true) {
+  document.getElementById('endModal').classList.remove('show');
+  state.cells = Array(9).fill('');
+  state.roundOver = false;
+
+  if (alternate) {
+    state.current = state.current === 'X' ? 'O' : 'X';
+  }
+
+  if (state.mode === 'online-host') {
+    state.myTurnInOnline = (state.current === state.mySymbol);
+    sendToPeer({ type:'new-round', current: state.current });
+  } else if (state.mode === 'online-guest') {
+    state.myTurnInOnline = (state.current === state.mySymbol);
+  } else {
+    state.myTurnInOnline = true;
+  }
+
+  renderBoard();
+  updateScoreboard();
+  refreshTurnStatus();
+}
+
+document.getElementById('resetRound').onclick = () => startNewRound(true);
+
+document.getElementById('resetAll').onclick = () => {
+  if (!confirm('Сбросить счёт, историю и статистику?')) return;
+  state.scores = { X:0, O:0 };
+  state.draws = 0;
+  state.history = [];
+  state.roundNum = 0;
+  state.current = 'X';
+  persist();
+  updateScoreboard();
+  renderHistory();
+  startNewRound(false);
+};
+
+document.getElementById('backToMenu').onclick = () => {
+  if (state.conn) {
+    try { state.conn.close(); } catch(e) {}
+    state.conn = null;
+  }
+  if (state.peer) {
+    try { state.peer.destroy(); } catch(e) {}
+    state.peer = null;
+  }
+  document.getElementById('game').style.display = 'none';
+  document.getElementById('setup').style.display = 'flex';
+  document.getElementById('onlineModal').classList.remove('show');
+};
+
+document.getElementById('nextRound').onclick = () => startNewRound(true);
+document.getElementById('closeEnd').onclick = () => {
+  document.getElementById('endModal').classList.remove('show');
+};
+
+/* ============================================================
+   ЗВУК ВКЛ/ВЫКЛ
+============================================================ */
+const soundToggle = document.getElementById('soundToggle');
+function updateSoundIcon() {
+  soundToggle.textContent = state.soundOn ? '🔊' : '🔇';
+}
+soundToggle.onclick = () => {
+  state.soundOn = !state.soundOn;
+  updateSoundIcon();
+  if (state.soundOn) sound.move();
+  persist();
+};
+document.getElementById('soundEnabled').onchange = (e) => {
+  state.soundOn = e.target.checked;
+  updateSoundIcon();
+  persist();
+};
+
+/* ============================================================
+   СТАРТ ИГРЫ (локально / онлайн)
+============================================================ */
+function readNamesAndSymbols() {
+  const n1 = (document.getElementById('name1').value || 'Игрок 1').trim().slice(0,12);
+  const n2 = (document.getElementById('name2').value || 'Игрок 2').trim().slice(0,12);
+  state.names = { X: n1, O: n2 };
+  persist();
+}
+
+document.getElementById('startLocal').onclick = () => {
+  readNamesAndSymbols();
+  state.mode = 'local';
+  state.mySymbol = null;
+  state.myTurnInOnline = true;
+  state.current = 'X';
+  state.roundNum = 0;
+  state.roundOver = false;
+  state.cells = Array(9).fill('');
+
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('game').style.display = 'flex';
+
+  renderBoard();
+  updateScoreboard();
+  renderHistory();
+  refreshTurnStatus();
+};
+
+/* ============================================================
+   ОНЛАЙН — PeerJS
+============================================================ */
+document.getElementById('startOnline').onclick = () => {
+  readNamesAndSymbols();
+  document.getElementById('onlineModal').classList.add('show');
+  document.getElementById('hostView').style.display = 'none';
+  document.getElementById('joinView').style.display = 'none';
+  document.getElementById('peerStatus').textContent = 'Выбери роль:';
+
+  // Добавим кнопки выбора роли, если их ещё нет
+  if (!document.getElementById('roleButtons')) {
+    const div = document.createElement('div');
+    div.id = 'roleButtons';
+    div.className = 'buttons';
+    div.style.marginTop = '8px';
+    div.innerHTML = `
+      <button id="roleHost">🎙 Создать игру</button>
+      <button class="secondary" id="roleJoin">🔗 Подключиться</button>
+    `;
+    document.querySelector('#onlineModal .modal').insertBefore(
+      div, document.getElementById('hostView')
+    );
+    document.getElementById('roleHost').onclick = startHosting;
+    document.getElementById('roleJoin').onclick = startJoining;
+  }
+  document.getElementById('roleButtons').style.display = 'flex';
+};
+
+function cleanupPeer() {
+  if (state.conn) {
+    try { state.conn.close(); } catch(e) {}
+    state.conn = null;
+  }
+  if (state.peer) {
+    try { state.peer.destroy(); } catch(e) {}
+    state.peer = null;
+  }
+}
+
+function startHosting() {
+  cleanupPeer();
+  document.getElementById('roleButtons').style.display = 'none';
+  document.getElementById('hostView').style.display = 'block';
+  document.getElementById('joinView').style.display = 'none';
+  document.getElementById('peerStatus').textContent = 'Создаю игру...';
+
+  state.peer = new Peer();
+  state.peer.on('open', id => {
+    document.getElementById('myPeerId').textContent = id;
+    document.getElementById('peerStatus').textContent = '✅ Игра создана, ждём друга';
+    document.getElementById('copyId').onclick = () => {
+      navigator.clipboard.writeText(id).then(() => {
+        document.getElementById('copyId').textContent = '✅ Скопировано!';
+        setTimeout(()=>document.getElementById('copyId').textContent = '📋 Скопировать код', 1500);
+      });
+    };
+  });
+  state.peer.on('error', err => {
+    document.getElementById('peerStatus').textContent = '❌ Ошибка: ' + err.type;
+  });
+  state.peer.on('connection', conn => {
+    state.conn = conn;
+    state.mode = 'online-host';
+    state.mySymbol = 'X';
+    document.getElementById('peerStatus').textContent = '✅ Друг подключился!';
+
+    conn.on('open', () => {
+      conn.send({ type:'init', names: state.names, syms: state.syms, current: state.current });
+      setTimeout(launchOnlineGame, 300);
+    });
+    conn.on('data', handlePeerData);
+    conn.on('close', () => {
+      alert('Соперник отключился');
+      document.getElementById('backToMenu').click();
+    });
+  });
+}
+
+function startJoining() {
+  cleanupPeer();
+  document.getElementById('roleButtons').style.display = 'none';
+  document.getElementById('hostView').style.display = 'none';
+  document.getElementById('joinView').style.display = 'block';
+  document.getElementById('peerStatus').textContent = 'Введи код и нажми «Подключиться»';
+
+  document.getElementById('connectBtn').onclick = () => {
+    const code = document.getElementById('joinCode').value.trim();
+    if (!code) { alert('Введи код'); return; }
+    document.getElementById('peerStatus').textContent = 'Подключаюсь...';
+
+    state.peer = new Peer();
+    state.peer.on('open', () => {
+      const conn = state.peer.connect(code);
+      state.conn = conn;
+      state.mode = 'online-guest';
+      state.mySymbol = 'O';
+
+      conn.on('open', () => {
+        document.getElementById('peerStatus').textContent = '✅ Подключено!';
+      });
+      conn.on('data', handlePeerData);
+      conn.on('error', err => {
+        document.getElementById('peerStatus').textContent = '❌ ' + err;
+      });
+      conn.on('close', () => {
+        alert('Соперник отключился');
+        document.getElementById('backToMenu').click();
+      });
+
+      // Таймаут на подключение
+      setTimeout(() => {
+        if (!conn.open) {
+          document.getElementById('peerStatus').textContent = '❌ Не удалось подключиться. Проверь код.';
+        }
+      }, 8000);
+    });
+    state.peer.on('error', err => {
+      document.getElementById('peerStatus').textContent = '❌ Ошибка: ' + err.type;
+    });
+  };
+}
+
+function launchOnlineGame() {
+  document.getElementById('onlineModal').classList.remove('show');
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('game').style.display = 'flex';
+
+  state.myTurnInOnline = (state.current === state.mySymbol);
+  state.roundOver = false;
+  state.cells = Array(9).fill('');
+  state.roundNum = 0;
+
+  renderBoard();
+  updateScoreboard();
+  renderHistory();
+  refreshTurnStatus();
+}
+
+function handlePeerData(data) {
+  if (!data || !data.type) return;
+
+  switch(data.type) {
+    case 'init':
+      // Пришло от хоста при подключении
+      if (data.names) state.names = data.names;
+      if (data.syms) state.syms = data.syms;
+      state.current = data.current || 'X';
+      launchOnlineGame();
+      break;
+
+    case 'move':
+      // Соперник сделал ход
+      if (state.roundOver) return;
+      if (state.cells[data.index]) return;
+      applyMove(data.index, data.symbol, true);
+      break;
+
+    case 'new-round':
+      state.cells = Array(9).fill('');
+      state.roundOver = false;
+      state.current = data.current;
+      state.myTurnInOnline = (state.current === state.mySymbol);
+      renderBoard();
+      updateScoreboard();
+      refreshTurnStatus();
+      document.getElementById('endModal').classList.remove('show');
+      break;
+
+    case 'reset-all':
+      state.scores = { X:0, O:0 };
+      state.draws = 0;
+      state.history = [];
+      state.roundNum = 0;
+      updateScoreboard();
+      renderHistory();
+      break;
+  }
+}
+
+function sendToPeer(msg) {
+  if (state.conn && state.conn.open) {
+    try { state.conn.send(msg); } catch(e) {}
+  }
+}
+
+/* ============================================================
+   ИНИЦИАЛИЗАЦИЯ
+============================================================ */
+function init() {
+  loadPersisted();
+  updateSoundIcon();
+  document.getElementById('soundEnabled').checked = state.soundOn;
+
+  document.getElementById('name1').value = state.names.X;
+  document.getElementById('name2').value = state.names.O;
+
+  buildSymbolPicker('symPick1', 'X');
+  buildSymbolPicker('symPick2', 'O');
+
+  updateScoreboard();
+  renderHistory();
+}
+
+init();
+
+// Закрытие модалки онлайн
+document.getElementById('closeOnline').onclick = () => {
+  document.getElementById('onlineModal').classList.remove('show');
+  if (document.getElementById('roleButtons')) {
+    document.getElementById('roleButtons').style.display = 'flex';
+  }
+  document.getElementById('hostView').style.display = 'none';
+  document.getElementById('joinView').style.display = 'none';
+};
+
+// Разблокировка аудио по первому касанию (iOS)
+document.body.addEventListener('touchstart', initAudio, { once:true });
+document.body.addEventListener('click', initAudio, { once:true });
+</script>
+</body>
+</html>
